@@ -1,0 +1,108 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Nomination {
+  id              String         @id @default(uuid())
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  awardCategory   String
+  region          String?
+  status          String         @default("pending") // pending, shortlisted, rejected
+  qualityScore    Float?
+  nominationCount Int            @default(1)
+  isShortlisted   Boolean        @default(false)
+  manualOverride  Boolean        @default(false)
+  
+  nominee         Nominee        @relation(fields: [nomineeId], references: [id])
+  nomineeId       String
+  nominator       Nominator      @relation(fields: [nominatorId], references: [id])
+  nominatorId     String
+  
+  justifications  Justification[]
+  media           Media[]
+  
+  awardCategoryRel  AwardCategory  @relation(fields: [awardCategory], references: [id])
+
+  @@index([awardCategory])
+  @@index([region])
+  @@index([status])
+  @@index([isShortlisted])
+}
+
+model Nominee {
+  id               String       @id @default(uuid())
+  companyId        String?      // Checkatrade company ID
+  companyName      String
+  tradeName        String
+  tradeType        String?
+  contactEmail     String?
+  contactPhone     String?
+  isValidMember    Boolean      @default(true)
+  needsReview      Boolean      @default(false)
+  location         String?
+  nominations      Nomination[]
+  
+  @@index([companyId])
+  @@index([companyName])
+  @@index([isValidMember])
+  @@index([needsReview])
+}
+
+model Nominator {
+  id            String       @id @default(uuid())
+  name          String
+  email         String
+  phone         String?
+  relationship  String       // customer, colleague, friend, self
+  nominations   Nomination[]
+  
+  @@index([email])
+  @@index([relationship])
+}
+
+model Justification {
+  id                 String     @id @default(uuid())
+  nomination         Nomination @relation(fields: [nominationId], references: [id])
+  nominationId       String
+  text               String     @db.Text
+  sentimentScore     Float?
+  criteriaAlignment  Float?
+  feedback           String?    @db.Text
+  qualityAssessment  String?
+  
+  @@index([nominationId])
+}
+
+model Media {
+  id            String     @id @default(uuid())
+  nomination    Nomination @relation(fields: [nominationId], references: [id])
+  nominationId  String
+  url           String
+  type          String     // image, document, etc.
+  description   String?
+  storagePath   String
+  
+  @@index([nominationId])
+  @@index([type])
+}
+
+model AwardCategory {
+  id                    String       @id @default(uuid())
+  name                  String
+  description           String?      @db.Text
+  allowsSelfNomination  Boolean      @default(false)
+  region                String?
+  nominations           Nomination[]
+  
+  @@index([region])
+  @@index([allowsSelfNomination])
+}
