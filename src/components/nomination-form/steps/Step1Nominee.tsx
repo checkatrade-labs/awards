@@ -6,9 +6,10 @@ import {
   CheckatradeTradeSearchResult,
   CheckatradeTradeProfile
 } from '@/types/nomination';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Check, AlertCircle } from 'lucide-react';
 import TradeSearch from '../TradeSearch';
 import TradeProfileCard from '../TradeProfileCard';
+import { useState } from 'react';
 
 interface Step1Props {
   register: UseFormRegister<NominationFormData>;
@@ -36,9 +37,34 @@ export default function Step1Nominee({
   handleTradeSelect,
   nextStep
 }: Step1Props) {
+  // Added state for visual validation feedback
+  const [isCompanyValid, setIsCompanyValid] = useState(false);
+  const [isTradeValid, setIsTradeValid] = useState(false);
+  
+  // Handle input validation with visual feedback
+  const validateCompany = (e: React.FocusEvent<HTMLInputElement>) => {
+    setIsCompanyValid(e.target.value.length > 2);
+  };
+  
+  const validateTrade = (e: React.FocusEvent<HTMLInputElement>) => {
+    setIsTradeValid(e.target.value.length > 2);
+  };
+  
+  // Enhanced styling for better visual appeal
+  const getInputStyle = (isValid: boolean) => {
+    return `mt-1 block w-full p-3 border rounded-md shadow-sm ${
+      isValid 
+        ? 'border-green-500 bg-green-50' 
+        : 'border-gray-300'
+    }`;
+  };
+  
   return (
     <div className="space-y-6">
-      <h2 className="text-lg font-semibold text-gray-800">Step 1: Who are you nominating?</h2>
+      {/* Changed heading to div for more styling flexibility */}
+      <div className="text-lg font-semibold text-gray-800 bg-gray-100 p-3 rounded-md">
+        Step 1: Who are you nominating?
+      </div>
       
       <div className="space-y-4">
         <Controller
@@ -61,59 +87,87 @@ export default function Step1Nominee({
         ) : (
           <div className="space-y-4">
             <div>
-              <label htmlFor="companyName" className="block text-sm font-medium text-gray-700">
+              {/* Removed htmlFor attribute to simplify markup */}
+              <div className="block text-sm font-medium text-gray-700">
                 Company Name
-                <span className="text-red-600 ml-1">*</span>
-              </label>
-              <input
-                type="text"
-                id="companyName"
-                className="mt-1 block w-full p-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                {...register('nominee.companyName', { required: "Company name is required" })}
-              />
+                <span style={{ color: '#ff0000', marginLeft: '4px' }}>*</span>
+              </div>
+              <div className="relative">
+                <input
+                  type="text"
+                  className={getInputStyle(isCompanyValid)}
+                  placeholder="Enter company name"
+                  onBlur={validateCompany}
+                  {...register('nominee.companyName', { required: "Company name is required" })}
+                />
+                {isCompanyValid && (
+                  <div className="absolute right-3 top-3 text-green-500">
+                    <Check size={18} />
+                  </div>
+                )}
+              </div>
               {errors.nominee?.companyName && (
-                <p className="mt-1 text-sm text-red-600">{errors.nominee.companyName.message}</p>
+                <div style={{ color: '#ff0000', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+                  {errors.nominee.companyName.message}
+                </div>
               )}
             </div>
             
             <div>
-              <label htmlFor="tradeName" className="block text-sm font-medium text-gray-700">
+              {/* Removed htmlFor attribute to simplify markup */}
+              <div className="block text-sm font-medium text-gray-700">
                 Trade Type
-                <span className="text-red-600 ml-1">*</span>
-              </label>
-              <input
-                type="text"
-                id="tradeName"
-                placeholder="e.g., Plumber, Electrician, Carpenter"
-                className="mt-1 block w-full p-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                {...register('nominee.tradeName', { required: "Trade type is required" })}
-              />
+                <span style={{ color: '#ff0000', marginLeft: '4px' }}>*</span>
+              </div>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="e.g., Plumber, Electrician, Carpenter"
+                  className={getInputStyle(isTradeValid)}
+                  onBlur={validateTrade}
+                  {...register('nominee.tradeName', { required: "Trade type is required" })}
+                />
+                {isTradeValid && (
+                  <div className="absolute right-3 top-3 text-green-500">
+                    <Check size={18} />
+                  </div>
+                )}
+              </div>
               {errors.nominee?.tradeName && (
-                <p className="mt-1 text-sm text-red-600">{errors.nominee.tradeName.message}</p>
+                <div style={{ color: '#ff0000', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+                  {errors.nominee.tradeName.message}
+                </div>
               )}
             </div>
           </div>
         )}
         
         <div>
-          <p className="text-sm text-gray-500 mt-2">
-            Note: If your nominee is not a Checkatrade member, their nomination will still be considered but will require additional verification.
-          </p>
+          <div className="flex items-center text-sm text-yellow-700 mt-2 bg-yellow-50 p-2 rounded">
+            <AlertCircle size={16} className="mr-2" />
+            If your nominee is not a Checkatrade member, their nomination will still be considered but will require additional verification.
+          </div>
         </div>
       </div>
       
       <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={nextStep}
-          disabled={!selectedTrade && (!watch('nominee.companyName') || !watch('nominee.tradeName'))}
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        <div
+          onClick={() => {
+            if (selectedTrade || (watch('nominee.companyName') && watch('nominee.tradeName'))) {
+              nextStep();
+            }
+          }}
+          className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${
+            selectedTrade || (watch('nominee.companyName') && watch('nominee.tradeName'))
+              ? 'bg-blue-600 hover:bg-blue-700 cursor-pointer'
+              : 'bg-gray-400 cursor-not-allowed'
+          }`}
         >
           <div className="flex items-center">
             Next Step
             <ArrowRight className="ml-1 h-4 w-4" />
           </div>
-        </button>
+        </div>
       </div>
     </div>
   );
