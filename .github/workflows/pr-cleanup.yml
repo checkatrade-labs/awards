@@ -1,0 +1,58 @@
+name: PR Cleanup
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/940497197574/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
+          service_account: 'github-actions@playground-jamespain-poc-21017.iam.gserviceaccount.com'
+          create_credentials_file: true
+          export_environment_variables: true
+          token_format: 'access_token'
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: playground-jamespain-poc-21017
+
+      - name: Generate service name
+        id: service-name
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          echo "SERVICE_NAME=awards-pr-${PR_NUMBER}" >> $GITHUB_OUTPUT
+
+      - name: Delete Cloud Run service
+        run: |
+          SERVICE_NAME=${{ steps.service-name.outputs.SERVICE_NAME }}
+          
+          # Check if service exists before attempting to delete
+          if gcloud run services describe ${SERVICE_NAME} --region=europe-west2 --quiet 2>/dev/null; then
+            echo "Deleting Cloud Run service: ${SERVICE_NAME}"
+            gcloud run services delete ${SERVICE_NAME} --region=europe-west2 --quiet
+          else
+            echo "Cloud Run service ${SERVICE_NAME} does not exist or has already been deleted"
+          fi
+
+      - name: Delete Docker image
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          IMAGE_NAME="europe-west2-docker.pkg.dev/playground-jamespain-poc-21017/awards/awards:pr-${PR_NUMBER}"
+          
+          # Check if image exists before attempting to delete
+          if gcloud artifacts docker images describe ${IMAGE_NAME} --quiet 2>/dev/null; then
+            echo "Deleting Docker image: ${IMAGE_NAME}"
+            gcloud artifacts docker images delete ${IMAGE_NAME} --quiet --delete-tags
+          else
+            echo "Docker image ${IMAGE_NAME} does not exist or has already been deleted"
+          fi
