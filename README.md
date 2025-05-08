@@ -1,36 +1,78 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Awards Nomination System
+
+A Next.js application for a trade awards nomination system. This application allows users to nominate trades for awards, with AI-powered feedback on nominations and integration with the Checkatrade API.
+
+## Features
+
+- Multi-step nomination form with real-time validation
+- AI-powered feedback on nomination quality
+- Integration with Checkatrade API for trade search and validation
+- Responsive design for all devices
+- Admin panel for reviewing nominations
+
+## Tech Stack
+
+- Next.js 15 with App Router
+- TypeScript
+- React Hook Form for form management
+- Tailwind CSS for styling
+- Prisma ORM with PostgreSQL
+- OpenAI integration for AI-powered feedback
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+ and npm
+- PostgreSQL database
+
+### Installation
+
+1. Clone the repository
+2. Install dependencies:
+
+```bash
+npm install
+```
+
+3. Set up environment variables:
+   - Create a `.env` file in the root directory
+   - Add the following variables:
+
+```
+DATABASE_URL="postgresql://username:password@localhost:5432/awards-ai"
+OPENAI_API_KEY="your-openai-api-key" # Optional, will use mock data if not provided
+```
+
+4. Run database migrations:
+
+```bash
+npx prisma migrate dev
+```
+
+5. Start the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+6. Open [http://localhost:3000](http://localhost:3000) with your browser to see the application
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Database Schema
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The application uses Prisma with PostgreSQL. The main models include:
 
-## Learn More
+- Nomination: The core nomination data
+- Nominee: Information about the nominated trade
+- Nominator: Information about the person making the nomination
+- Justification: Text explaining why the trade deserves the award
+- Media: Supporting images or documents
+- AwardCategory: Available award categories
 
-To learn more about Next.js, take a look at the following resources:
+## AI Integration
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The application uses OpenAI for analyzing nomination quality. If no API key is provided, the application will use mock data for AI responses.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Deployment
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The application can be deployed to Google Cloud Run using the included `deploy-to-cloud-run.sh` script, or to Vercel for a simpler deployment process.
