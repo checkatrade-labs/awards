@@ -92,7 +92,7 @@ export default function JustificationField({
         clearTimeout(idleTimer);
       }
     };
-  }, [value, analyzeJustification]); // Remove idleTimer from dependencies - it's handled within the effect
+  }, [value, analyzeJustification, idleTimer]);
 
   // Handle improving nomination
   const handleImprove = () => {
