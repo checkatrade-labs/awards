@@ -1,0 +1,93 @@
+name: PR Preview Deployment
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/940497197574/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
+          service_account: 'github-actions@playground-jamespain-poc-21017.iam.gserviceaccount.com'
+          create_credentials_file: true
+          export_environment_variables: true
+          token_format: 'access_token'
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: playground-jamespain-poc-21017
+
+      - name: Generate service name
+        id: service-name
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          echo "SERVICE_NAME=awards-pr-${PR_NUMBER}" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          gcloud auth configure-docker europe-west2-docker.pkg.dev
+          
+          # Build and push the Docker image
+          docker build \
+            -t europe-west2-docker.pkg.dev/playground-jamespain-poc-21017/awards/awards:pr-${PR_NUMBER} \
+            .
+          docker push europe-west2-docker.pkg.dev/playground-jamespain-poc-21017/awards/awards:pr-${PR_NUMBER}
+
+      - name: Deploy to Cloud Run
+        id: deploy
+        run: |
+          SERVICE_NAME=${{ steps.service-name.outputs.SERVICE_NAME }}
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          
+          # Deploy to Cloud Run with OpenAI API key from GitHub secrets
+          gcloud run deploy ${SERVICE_NAME} \
+            --image europe-west2-docker.pkg.dev/playground-jamespain-poc-21017/awards/awards:pr-${PR_NUMBER} \
+            --region europe-west2 \
+            --platform managed \
+            --allow-unauthenticated \
+            --set-env-vars="OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}"
+
+      - name: Set IAM policy for public access
+        run: |
+          SERVICE_NAME=${{ steps.service-name.outputs.SERVICE_NAME }}
+          gcloud run services add-iam-policy-binding ${SERVICE_NAME} \
+            --region=europe-west2 \
+            --member=allUsers \
+            --role=roles/run.invoker
+
+      - name: Get preview URL
+        id: preview-url
+        run: |
+          SERVICE_NAME=${{ steps.service-name.outputs.SERVICE_NAME }}
+          URL=$(gcloud run services describe ${SERVICE_NAME} --region europe-west2 --format='value(status.url)')
+          echo "URL=${URL}" >> $GITHUB_OUTPUT
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const url = '${{ steps.preview-url.outputs.URL }}';
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🚀 Preview deployed to: ${url}`
+            });
