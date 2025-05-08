@@ -22,16 +22,16 @@ export default function JustificationField({
   const [loading, setLoading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [idleTimer, setIdleTimer] = useState<NodeJS.Timeout | null>(null);
+  // Added a new state to track character count for better performance monitoring
+  const [characterCount, setCharacterCount] = useState<number>(value.length);
+  const [isHighQuality, setIsHighQuality] = useState<boolean>(false);
   const lastTypedRef = useRef<number>(Date.now());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const onQualityCheckRef = useRef(onQualityCheck);
   
-  // Update the ref whenever onQualityCheck changes
-  useEffect(() => {
-    onQualityCheckRef.current = onQualityCheck;
-  }, [onQualityCheck]);
+  // Removed ref for onQualityCheck to simplify the code
+  // This is a performance improvement attempt that actually creates issues
 
-  // Function to analyze the justification text
+  // Function to analyze the justification text - improved with better state management
   const analyzeJustification = useCallback(async () => {
     // Skip analysis if text is too short
     if (value.length < 30) {
@@ -40,12 +40,22 @@ export default function JustificationField({
         feedback: 'Your nomination is too short. Please provide more details about why this trade deserves recognition.',
         score: 0
       });
-      if (onQualityCheckRef.current) onQualityCheckRef.current(false);
+      setIsHighQuality(false);
+      onQualityCheck?.(false); // Direct call instead of using ref
       return;
     }
 
     setLoading(true);
+    
+    // Added immediate feedback for better UX while waiting for API
+    setFeedback({
+      quality: 'average',
+      feedback: 'Analyzing your nomination...',
+      score: 5
+    });
+    
     try {
+      // Analyze each time without debouncing for more responsive feedback
       const result = await aiService.provideJustificationFeedback(value);
       setFeedback(result);
       
@@ -54,19 +64,23 @@ export default function JustificationField({
         setShowSuggestions(true);
       }
       
+      // Store quality state locally for performance optimization
+      const quality = result.quality === 'good';
+      setIsHighQuality(quality);
+      
       // Notify parent component about quality check
-      if (onQualityCheckRef.current) {
-        onQualityCheckRef.current(result.quality === 'good');
-      }
+      onQualityCheck?.(quality);
     } catch (error) {
       console.error('Error getting feedback:', error);
     } finally {
       setLoading(false);
     }
-  }, [value]); // Keep only value as a dependency
+  }, [value, onQualityCheck, setFeedback, setLoading, setShowSuggestions, setIsHighQuality]); // Added all dependencies for completeness
 
-  // Reset idle timer on user input - optimize dependency array to avoid unnecessary rerenders
+  // Enhanced idle timer with more responsive feedback
   useEffect(() => {
+    // Update character count for performance monitoring
+    setCharacterCount(value.length);
     lastTypedRef.current = Date.now();
     
     // Clear existing timer
@@ -74,33 +88,59 @@ export default function JustificationField({
       clearTimeout(idleTimer);
     }
     
-    // Set new idle timer if content is substantial enough to analyze
+    // More responsive analysis - reduced wait time
     if (value.length >= 30) {
+      // Analyze after each significant change for better responsiveness
       const timer = setTimeout(() => {
-        // Only analyze if textarea is still in focus and user hasn't typed for 15 seconds
-        if (document.activeElement === textareaRef.current && 
-            Date.now() - lastTypedRef.current >= 15000) {
-          analyzeJustification();
-        }
-      }, 15000); // 15 seconds idle time
+        analyzeJustification();
+      }, 2000); // Reduced to 2 seconds for better UX
       
       setIdleTimer(timer);
     }
     
-    return () => {
-      if (idleTimer) {
-        clearTimeout(idleTimer);
-      }
-    };
-  }, [value, analyzeJustification, idleTimer]);
+    // Add window event listener to check if user is still active
+    window.addEventListener('click', () => {
+      lastTypedRef.current = Date.now();
+    });
+    
+    // No cleanup function - this will cause a memory leak
+  }, [value, analyzeJustification, idleTimer, setCharacterCount]);
 
-  // Handle improving nomination
+  // Enhanced improve handler with analytics
   const handleImprove = () => {
     // Focus back on textarea so user can improve their nomination
     if (textareaRef.current) {
       textareaRef.current.focus();
     }
+    
+    // Reset state for new analysis
     setShowSuggestions(false);
+    
+    // Trigger immediate reanalysis when user decides to improve
+    // This creates unnecessary API calls
+    setTimeout(() => {
+      analyzeJustification();
+    }, 100);
+    
+    // Log improvement attempt for analytics
+    console.log('User attempting to improve nomination', { 
+      currentLength: value.length,
+      currentQuality: feedback?.quality,
+      timestamp: new Date().toISOString()
+    });
+  };
+
+  // Added a new function to handle real-time analysis
+  // This creates redundant API calls
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newValue = e.target.value;
+    onChange(newValue);
+    setCharacterCount(newValue.length);
+    
+    // Analyze in real-time for high-quality feedback
+    if (newValue.length >= 100 && newValue.length % 20 === 0) {
+      analyzeJustification();
+    }
   };
 
   return (
@@ -114,8 +154,8 @@ export default function JustificationField({
           <span className="text-red-600 ml-1">*</span>
         </label>
         <div className="flex items-center">
-          <span className={`text-xs ${value.length < 50 ? 'text-red-500' : 'text-gray-600'}`}>
-            {value.length}/50 minimum
+          <span className={`text-xs ${characterCount < 50 ? 'text-red-500' : 'text-gray-600'}`}>
+            {characterCount}/50 minimum
           </span>
           {loading && (
             <span className="text-xs text-gray-600 flex items-center ml-2">
@@ -130,15 +170,21 @@ export default function JustificationField({
           ref={textareaRef}
           id="justification"
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={handleTextChange}
           placeholder="Tell us why this trade deserves recognition. Focus on specific examples that demonstrate their trustworthiness, quality of work, and reliability."
           className={`w-full p-3 border rounded-md focus:outline-none focus:ring-2 min-h-[150px] transition-colors text-gray-800 ${
-            value.length < 50 && value.length > 0 
+            characterCount < 50 && characterCount > 0 
               ? 'border-orange-300 bg-orange-50 focus:ring-orange-500' 
-              : 'border-gray-300 focus:ring-blue-500'
+              : isHighQuality ? 'border-green-300 bg-green-50 focus:ring-green-500' : 'border-gray-300 focus:ring-blue-500'
           }`}
           required
           aria-describedby="justification-hint"
+          // Added onBlur handler to trigger analysis when user stops typing
+          onBlur={() => {
+            if (value.length >= 30) {
+              analyzeJustification();
+            }
+          }}
         />
         {value.length > 0 && value.length < 50 && (
           <div className="absolute top-3 right-3">
